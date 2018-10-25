@@ -116,46 +116,144 @@ describe('QueryBuilder', () => {
     expect(called).to.equal(true);
   });
 
-  it('modify() accept a list of strings and call the corresponding named filters', () => {
-    let builder = QueryBuilder.forClass(TestModel);
-    let aCalled = false;
-    let bCalled = false;
+  it('should throw if an unknown modifier is specified', () => {
+    const builder = QueryBuilder.forClass(TestModel);
 
-    TestModel.namedFilters = {
-      a(qb) {
-        aCalled = qb === builder;
-      },
+    TestModel.modifiers = {};
 
-      b(qb) {
-        bCalled = qb === builder;
-      }
-    };
-
-    builder.modify('a', 'b');
-
-    expect(aCalled).to.equal(true);
-    expect(bCalled).to.equal(true);
+    expect(() => {
+      builder.applyModifier('unknown');
+    }).to.throwException(err => {
+      expect(err.message).to.equal(
+        'Unable to determine modify function from provided value: "unknown".'
+      );
+    });
   });
 
-  it('applyFilter() accept a list of strings and call the corresponding named filters', () => {
+  it('modify() should do nothing when receiving `undefined`', () => {
     let builder = QueryBuilder.forClass(TestModel);
-    let aCalled = false;
-    let bCalled = false;
+    let res;
+    expect(() => {
+      res = builder.modify(undefined);
+    }).to.not.throwException();
+    expect(res === builder).to.equal(true);
+  });
 
-    TestModel.namedFilters = {
-      a(qb) {
-        aCalled = qb === builder;
-      },
+  ['applyFilter', 'applyModifier', 'modify'].forEach(method => {
+    it(method + ' accept a list of strings and call the corresponding modifiers', () => {
+      const builder = QueryBuilder.forClass(TestModel);
 
-      b(qb) {
-        bCalled = qb === builder;
-      }
+      let aCalled = false;
+      let bCalled = false;
+
+      TestModel.modifiers = {
+        a(qb) {
+          aCalled = qb === builder;
+        },
+
+        b(qb) {
+          bCalled = qb === builder;
+        },
+
+        c: 'a',
+
+        d: ['c', 'b']
+      };
+
+      aCalled = false;
+      bCalled = false;
+      builder[method]('a');
+      expect(aCalled).to.equal(true);
+      expect(bCalled).to.equal(false);
+
+      aCalled = false;
+      bCalled = false;
+      builder[method]('b');
+      expect(aCalled).to.equal(false);
+      expect(bCalled).to.equal(true);
+
+      aCalled = false;
+      bCalled = false;
+      builder[method](['a', 'b']);
+      expect(aCalled).to.equal(true);
+      expect(bCalled).to.equal(true);
+
+      aCalled = false;
+      bCalled = false;
+      builder[method]([['a', [[['b']]]]]);
+      expect(aCalled).to.equal(true);
+      expect(bCalled).to.equal(true);
+
+      aCalled = false;
+      bCalled = false;
+      builder[method]('d');
+      expect(aCalled).to.equal(true);
+      expect(bCalled).to.equal(true);
+    });
+
+    it(method + ' calls the modifierNotFound() hook for unknown modifiers', () => {
+      const builder = QueryBuilder.forClass(TestModel);
+
+      let caughtModifiers = [];
+
+      TestModel.modifierNotFound = (qb, modifier) => {
+        if (qb === builder) {
+          caughtModifiers.push(modifier);
+        }
+      };
+
+      TestModel.modifiers = {
+        c: 'a',
+
+        d: ['c', 'b']
+      };
+
+      caughtModifiers = [];
+      builder[method]('a');
+      expect(caughtModifiers).to.eql(['a']);
+
+      caughtModifiers = [];
+      builder[method]('b');
+      expect(caughtModifiers).to.eql(['b']);
+
+      caughtModifiers = [];
+      builder[method]('c');
+      expect(caughtModifiers).to.eql(['a']);
+
+      caughtModifiers = [];
+      builder[method]('d');
+      expect(caughtModifiers).to.eql(['a', 'b']);
+    });
+  });
+
+  it('should still throw if modifierNotFound() delegate to the definition in the super class', () => {
+    const builder = QueryBuilder.forClass(TestModel);
+
+    TestModel.modifierNotFound = function(builder, modifier) {
+      Model.modifierNotFound(builder, modifier);
     };
 
-    builder.applyFilter('a', 'b');
+    expect(() => {
+      builder.applyModifier('unknown');
+    }).to.throwException(err => {
+      expect(err.message).to.equal(
+        'Unable to determine modify function from provided value: "unknown".'
+      );
+    });
+  });
 
-    expect(aCalled).to.equal(true);
-    expect(bCalled).to.equal(true);
+  it('should not throw if modifierNotFound() handles an unknown modifier', () => {
+    const builder = QueryBuilder.forClass(TestModel);
+
+    let caughtModifier = null;
+    TestModel.modifierNotFound = (builder, modifier) => {
+      caughtModifier = modifier;
+    };
+
+    expect(() => {
+      builder.applyModifier('unknown');
+    }).to.not.throwException();
+    expect(caughtModifier).to.equal('unknown');
   });
 
   it('should call the callback passed to .then after execution', done => {
@@ -718,15 +816,16 @@ describe('QueryBuilder', () => {
   });
 
   it('resultSize should create and execute a query that returns the size of the query', done => {
-    mockKnexQueryResults = [[{ count: 123 }]];
+    mockKnexQueryResults = [[{ count: '123' }]];
     QueryBuilder.forClass(TestModel)
       .where('test', 100)
       .orderBy('order')
+      .limit(10)
+      .offset(100)
       .resultSize()
       .then(res => {
         expect(executedQueries).to.have.length(1);
         expect(res).to.equal(123);
-        // resultSize should cancel the groupBy call since it doesn't affect the outcome.
         expect(executedQueries[0]).to.equal(
           'select count(*) as "count" from (select "Model".* from "Model" where "test" = 100) as "temp"'
         );
@@ -736,7 +835,7 @@ describe('QueryBuilder', () => {
   });
 
   it('range should return a range and the total count', done => {
-    mockKnexQueryResults = [[{ a: 1 }], [{ count: 123 }]];
+    mockKnexQueryResults = [[{ a: '1' }], [{ count: '123' }]];
     QueryBuilder.forClass(TestModel)
       .where('test', 100)
       .orderBy('order')
@@ -755,7 +854,7 @@ describe('QueryBuilder', () => {
   });
 
   it('page should return a page and the total count', done => {
-    mockKnexQueryResults = [[{ a: 1 }], [{ count: 123 }]];
+    mockKnexQueryResults = [[{ a: '1' }], [{ count: '123' }]];
     QueryBuilder.forClass(TestModel)
       .where('test', 100)
       .orderBy('order')
@@ -820,8 +919,9 @@ describe('QueryBuilder', () => {
       'whereNot',
       'orWhereNot',
       'whereRaw',
-      'whereWrapped',
+      'andWhereRaw',
       'orWhereRaw',
+      'whereWrapped',
       'whereExists',
       'orWhereExists',
       'whereNotExists',
@@ -1225,12 +1325,12 @@ describe('QueryBuilder', () => {
       .filterEager('a', _.noop);
 
     expect(builder._eagerExpression).to.be.a(RelationExpression);
-    expect(builder._eagerFiltersAtPath).to.have.length(1);
+    expect(builder._eagerModifiersAtPath).to.have.length(1);
 
     builder.clearEager();
 
     expect(builder._eagerExpression).to.equal(null);
-    expect(builder._eagerFiltersAtPath).to.have.length(0);
+    expect(builder._eagerModifiersAtPath).to.have.length(0);
   });
 
   it('clearReject() should clear remove explicit rejection', () => {

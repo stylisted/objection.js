@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.4.0
+
+### What's new
+
+  * Add `modifierNotFound` hook [#1120](https://github.com/Vincit/objection.js/issues/1120)
+  * fix [#1121](https://github.com/Vincit/objection.js/issues/1121)
+  * fix [#1126](https://github.com/Vincit/objection.js/issues/1126)
+
+## 1.3.0
+
+### What's new
+
+  * Use `objection.raw` instead of `knex.raw` in `Model.raw`. [#1077](https://github.com/Vincit/objection.js/issues/1077)
+  * Allow modifiers (namedFilters) to be used in `modifyEager` too.
+  * Add `underscoreBeforeDigits` option for snake case converters. [#1025](https://github.com/Vincit/objection.js/issues/1025)
+  * fix [#1074](https://github.com/Vincit/objection.js/issues/1074)
+  * Typing fixes
+
+## 1.2.3
+
+### What's new
+
+  * fix [#1007](https://github.com/Vincit/objection.js/issues/1007)
+  * fix [#1008](https://github.com/Vincit/objection.js/issues/1008)
+  * fix [#1047](https://github.com/Vincit/objection.js/issues/1047)
+
 ## 1.2.2
 
 ### What's new

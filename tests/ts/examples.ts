@@ -162,6 +162,16 @@ async () => {
   takesMaybePerson(await Person.query().findOne({ lastName }));
 };
 
+// .query().castTo()
+async () => {
+  const animals = await Person.query()
+    .joinRelation('children.children.pets')
+    .select('children:children:pets.*')
+    .castTo(Animal);
+
+  takesAnimals(animals);
+};
+
 // instance methods:
 async () => {
   const person = new Person();
@@ -252,6 +262,12 @@ class Animal extends objection.Model {
     }
   };
 }
+
+const takesAnimal = (animal: Animal) => {
+  animal.species = 'dog';
+};
+const takesMaybeAnimal = (_: Animal | undefined) => 1;
+const takesAnimals = (_: Animal[]) => 1;
 
 class Comment extends objection.Model {
   // prettier-ignore
@@ -408,6 +424,20 @@ const rowsDeleted: Promise<number> = qb.delete();
 const rowsDeletedById: Promise<number> = qb.deleteById(123);
 const rowsDeletedByIds: Promise<number> = qb.deleteById([123, 456]);
 
+const rowsUpdatedWithData: Promise<number>[] = [
+  qb.update({ firstName: 'name' }),
+  qb.update({ firstName: ref('last_name') }),
+  qb.update({ firstName: raw('"name"') }),
+  qb.update({ firstName: qb.select('lastname') })
+];
+
+const rowsPatchedWithData: Promise<number>[] = [
+  qb.patch({ firstName: 'name' }),
+  qb.patch({ firstName: ref('last_name') }),
+  qb.patch({ firstName: raw('"name"') }),
+  qb.patch({ firstName: qb.select('lastname') })
+];
+
 const insertedModel: Promise<Person> = Person.query().insertAndFetch({});
 const insertedModels1: Promise<Person[]> = Person.query().insertGraphAndFetch([
   new Person(),
@@ -439,6 +469,30 @@ const updatedModel: Promise<Person> = Person.query().updateAndFetch({});
 const updatedModelById: Promise<Person> = Person.query().updateAndFetchById(123, {});
 const patchedModel: Promise<Person> = Person.query().patchAndFetch({});
 const patchedModelById: Promise<Person> = Person.query().patchAndFetchById(123, {});
+
+const updatedModels: Promise<Person>[] = [
+  qb.updateAndFetch({ firstName: 'name' }),
+  qb.updateAndFetch({ firstName: ref('last_name') }),
+  qb.updateAndFetch({ firstName: raw('"name"') }),
+  qb.updateAndFetch({ firstName: qb.select('lastname') }),
+
+  qb.updateAndFetchById(123, { firstName: 'name' }),
+  qb.updateAndFetchById(123, { firstName: ref('last_name') }),
+  qb.updateAndFetchById(123, { firstName: raw('"name"') }),
+  qb.updateAndFetchById(123, { firstName: qb.select('lastname') })
+];
+
+const patchedModels: Promise<Person>[] = [
+  qb.patchAndFetch({ firstName: 'name' }),
+  qb.patchAndFetch({ firstName: ref('last_name') }),
+  qb.patchAndFetch({ firstName: raw('"name"') }),
+  qb.patchAndFetch({ firstName: qb.select('lastname') }),
+
+  qb.patchAndFetchById(123, { firstName: 'name' }),
+  qb.patchAndFetchById(123, { firstName: ref('last_name') }),
+  qb.patchAndFetchById(123, { firstName: raw('"name"') }),
+  qb.patchAndFetchById(123, { firstName: qb.select('lastname') })
+];
 
 const rowsEager: Promise<Person[]> = Person.query()
   .eagerAlgorithm(Person.NaiveEagerAlgorithm)

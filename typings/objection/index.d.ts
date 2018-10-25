@@ -213,6 +213,7 @@ declare namespace Objection {
     to: string | Reference | (string | Reference)[];
     modelClass?: ModelClass<any> | string;
     extra?: string[] | object;
+    beforeInsert?: (model: Model, context: QueryContext) => Promise<void> | void;
   }
 
   export interface RelationMapping {
@@ -237,7 +238,7 @@ declare namespace Objection {
     relate?: boolean | string[];
     unrelate?: boolean | string[];
     insertMissing?: boolean | string[];
-    update?: boolean;
+    update?: boolean | string[];
     noInsert?: boolean | string[];
     noUpdate?: boolean | string[];
     noDelete?: boolean | string[];
@@ -246,7 +247,7 @@ declare namespace Objection {
   }
 
   export interface InsertGraphOptions {
-    relate?: boolean;
+    relate?: boolean | string[];
   }
 
   export interface QueryContext {
@@ -477,7 +478,7 @@ declare namespace Objection {
     static WhereInEagerAlgorithm: EagerAlgorithm;
     static NaiveEagerAlgorithm: EagerAlgorithm;
 
-    static getRelations(): { [key: string]: Relation }
+    static getRelations(): { [key: string]: Relation };
 
     static query<QM extends Model>(
       this: Constructor<QM>,
@@ -622,6 +623,7 @@ declare namespace Objection {
     extends QueryBuilderBase<QM, RM, RV>,
       Executable<RV> {
     throwIfNotFound(): QueryBuilder<QM, RM>;
+    castTo<T extends typeof Model>(model: T): QueryBuilder<QM, InstanceType<T>[]>;
   }
 
   export interface QueryBuilderYieldingOne<QM extends Model> extends QueryBuilder<QM, QM, QM> {}
@@ -653,9 +655,13 @@ declare namespace Objection {
   }
 
   interface InsertGraphAndFetch<QM extends Model> {
-    (modelsOrObjects?: Partial<QM>, options?: InsertGraphOptions): QueryBuilder<QM, QM>;
     (modelsOrObjects?: Partial<QM>[], options?: InsertGraphOptions): QueryBuilder<QM, QM[]>;
+    (modelOrObject?: Partial<QM>, options?: InsertGraphOptions): QueryBuilder<QM, QM>;
   }
+
+  type PartialUpdate<QM extends Model> = {
+    [P in keyof QM]?: QM[P] | Raw | Reference | QueryBuilder<any, any[]>
+  };
 
   interface QueryBuilderBase<QM extends Model, RM, RV> extends QueryInterface<QM, RM, RV> {
     modify(func: (builder: this) => void): this;
@@ -685,16 +691,16 @@ declare namespace Objection {
     /**
      * @return a Promise of the number of updated rows
      */
-    update(modelOrObject: Partial<QM>): QueryBuilderYieldingCount<QM, RM>;
-    updateAndFetch(modelOrObject: Partial<QM>): QueryBuilder<QM, QM>;
-    updateAndFetchById(id: Id, modelOrObject: Partial<QM>): QueryBuilder<QM, QM>;
+    update(modelOrObject: PartialUpdate<QM>): QueryBuilderYieldingCount<QM, RM>;
+    updateAndFetch(modelOrObject: PartialUpdate<QM>): QueryBuilder<QM, QM>;
+    updateAndFetchById(id: Id, modelOrObject: PartialUpdate<QM>): QueryBuilder<QM, QM>;
 
     /**
      * @return a Promise of the number of patched rows
      */
-    patch(modelOrObject: Partial<QM>): QueryBuilderYieldingCount<QM, RM>;
-    patchAndFetchById(idOrIds: IdOrIds, modelOrObject: Partial<QM>): QueryBuilder<QM, QM>;
-    patchAndFetch(modelOrObject: Partial<QM>): QueryBuilder<QM, QM>;
+    patch(modelOrObject: PartialUpdate<QM>): QueryBuilderYieldingCount<QM, RM>;
+    patchAndFetchById(idOrIds: IdOrIds, modelOrObject: PartialUpdate<QM>): QueryBuilder<QM, QM>;
+    patchAndFetch(modelOrObject: PartialUpdate<QM>): QueryBuilder<QM, QM>;
 
     upsertGraph: Upsert<QM>;
     upsertGraphAndFetch: Upsert<QM>;
@@ -1119,6 +1125,7 @@ declare namespace Objection {
       RM,
       RV
     >;
+    (queryBuilder: QueryBuilder<Model>): QueryBuilder<QM, RM, RV>;
   }
 
   interface JoinRaw<QM extends Model, RM, RV> {
